@@ -32,7 +32,7 @@ public class ZookeeperClientTest {
         // 此处用true, 使用上述zookeeper默认watcher
 //        String s = new String(client.getData("/angelo", true, stat));
 
-        client.create("/angelo", "1".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
+//        client.create("/angelo", "1".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
 
         client.getData("/angelo", false, new AsyncCallback.DataCallback() {
             @Override
