@@ -364,6 +364,9 @@ public class ZooKeeperMain {
         }
     }
 
+    /**
+     * 执行命令行的输入
+     */
     public void executeLine(String line)
     throws InterruptedException, IOException, KeeperException {
       if (!line.equals("")) {

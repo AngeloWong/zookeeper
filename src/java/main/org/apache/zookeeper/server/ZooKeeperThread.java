@@ -21,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * 这是一个抓取所有未捕捉异常的线程
  * This is the main class for catching all the uncaught exceptions thrown by the
  * threads.
  */
