@@ -32,6 +32,7 @@ public class PathUtils {
 	 */
 	public static void validatePath(String path, boolean isSequential) 
 		throws IllegalArgumentException {
+	    // 顺序节点长度默认加1
 		validatePath(isSequential? path + "1": path);
 	}
 	
@@ -87,9 +88,9 @@ public class PathUtils {
                     break;
                 }
             } else if (c > '\u0000' && c < '\u001f'
-                    || c > '\u007f' && c < '\u009F'
-                    || c > '\ud800' && c < '\uf8ff'
-                    || c > '\ufff0' && c < '\uffff') {
+                    || c > '\u007f' && c < '\u009F' //
+                    || c > '\ud800' && c < '\uf8ff' // High-half zone of UTF-16,Low-half zone of UTF-16,自行使用区域 (Private Use Zone)
+                    || c > '\ufff0' && c < '\uffff') { // 特殊 (Specials)
                 reason = "invalid character @" + i;
                 break;
             }

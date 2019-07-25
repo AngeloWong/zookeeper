@@ -256,6 +256,22 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     }
     
     /**
+     *  服务端接收请求
+     *  1. 创建事务日志
+     *  2. 快照，Database，文件
+     *  3. 更新内存，操作DataTree
+     *  4. 返回错误或正确信息
+     *
+     *  持久化，内存，
+     *
+     *  Database
+     *      DataTree
+     *          DataNode
+     *
+     *
+     *  服务器启动的时候：
+     *  1. 从文件里面取数据，加载内存Database
+     *
      *  Restore sessions and data
      */
     public void loadData() throws IOException, InterruptedException {
@@ -413,6 +429,8 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             createSessionTracker();
         }
         startSessionTracker();
+        // 这里比较重要，这里设置请求处理器，包括请求前置处理器，和请求后置处理器
+        // 注意，集群模式下，learner服务端都对调用这个方法，但是比如FollowerZookeeperServer和ObserverZooKeeperServer都会重写这个方法
         setupRequestProcessors();
 
         registerJMX();
@@ -421,6 +439,12 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         notifyAll();
     }
 
+    /**
+     * PrepRequestProcessor.next => SyncRequestProcessor.next => FinalRequestProcessor
+     *
+     * socket->packet->request->queue
+     * firstProcessor.rum() 从queue取出request，请求处理器链处理这个request
+     */
     protected void setupRequestProcessors() {
         RequestProcessor finalProcessor = new FinalRequestProcessor(this);
         RequestProcessor syncProcessor = new SyncRequestProcessor(this,
@@ -748,7 +772,9 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             touch(si.cnxn);
             boolean validpacket = Request.isValid(si.type);
             if (validpacket) {
+                // 往下，这里默认用的是PrepRequestProcessor，并且这是一个线程，会不停的从队列中获取命令进行处理
                 firstProcessor.processRequest(si);
+                // 处理中的请求加1
                 if (si.cnxn != null) {
                     incInProcess();
                 }
@@ -963,6 +989,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         // We have the request, now process and setup for next
         InputStream bais = new ByteBufferInputStream(incomingBuffer);
         BinaryInputArchive bia = BinaryInputArchive.getArchive(bais);
+        // 读取请求头进行判断
         RequestHeader h = new RequestHeader();
         h.deserialize(bia, "header");
         // Through the magic of byte buffers, txn will not be
@@ -1018,9 +1045,11 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                 return;
             }
             else {
+                // 注意这里构造请求的时候会吧cnxn中的authInfo加入到request中去
                 Request si = new Request(cnxn, cnxn.getSessionId(), h.getXid(),
                   h.getType(), incomingBuffer, cnxn.getAuthInfo());
                 si.setOwner(ServerCnxn.me);
+                // 提交请求
                 submitRequest(si);
             }
         }

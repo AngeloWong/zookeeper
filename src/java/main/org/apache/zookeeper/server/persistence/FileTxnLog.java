@@ -188,10 +188,12 @@ public class FileTxnLog implements TxnLog {
     }
     
     /**
+     * 添加一个事务到文件中
+     *
      * append an entry to the transaction log
      * @param hdr the header of the transaction
      * @param txn the transaction part of the entry
-     * returns true iff something appended, otw false 
+     * returns true iff something appended, otw false
      */
     public synchronized boolean append(TxnHeader hdr, Record txn)
         throws IOException
@@ -232,6 +234,7 @@ public class FileTxnLog implements TxnLog {
         }
         Checksum crc = makeChecksumAlgorithm();
         crc.update(buf, 0, buf.length);
+        // oa源于logStream，所以一个事务日志文件就是一个logStream
         oa.writeLong(crc.getValue(), "txnEntryCRC");
         Util.writeTxnBytes(oa, buf);
 

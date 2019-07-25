@@ -294,6 +294,7 @@ public class ZooKeeperMain {
     public ZooKeeperMain(String args[]) throws IOException, InterruptedException {
         cl.parseOptions(args);
         System.out.println("Connecting to " + cl.getOption("server"));
+        // 连接服务器，并且初始化zk
         connectToZK(cl.getOption("server"));
         //zk = new ZooKeeper(cl.getOption("server"),
 //                Integer.parseInt(cl.getOption("timeout")), new MyWatcher());
@@ -691,6 +692,7 @@ public class ZooKeeperMain {
         
         if (cmd.equals("create") && args.length >= 3) {
             int first = 0;
+            // 构造CreateMode,从参数里面解析出节点类型
             CreateMode flags = CreateMode.PERSISTENT;
             if ((args[1].equals("-e") && args[2].equals("-s"))
                     || (args[1]).equals("-s") && (args[2].equals("-e"))) {
@@ -777,6 +779,11 @@ public class ZooKeeperMain {
                 System.err.println("quota for " + path + " does not exist.");
             }
         } else if (cmd.equals("setquota") && args.length >= 4) {
+            // setquota -n|-b val path
+//            -n：限制子节点的数量
+//            -b：限制节点的数据长度
+            // zk并没有在物理上限制节点的数量和数据的长度，当节点超过了限制，zk只会在后台记录节点限制的日志信息
+
             String option = args[1];
             String val = args[2];
             path = args[3];

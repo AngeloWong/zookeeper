@@ -108,7 +108,7 @@ public class NIOServerCnxn extends ServerCnxn {
         sock.socket().setSoLinger(false, -1);
         InetAddress addr = ((InetSocketAddress) sock.socket()
                 .getRemoteSocketAddress()).getAddress();
-        authInfo.add(new Id("ip", addr.getHostAddress()));
+        authInfo.add(new Id("ip", addr.getHostAddress())); // 让本地有权限
         sk.interestOps(SelectionKey.OP_READ);
     }
 
@@ -203,11 +203,12 @@ public class NIOServerCnxn extends ServerCnxn {
         }
 
         if (incomingBuffer.remaining() == 0) { // have we read length bytes?
-            packetReceived();
+            packetReceived(); // 计数
             incomingBuffer.flip();
             if (!initialized) {
                 readConnectRequest();
             } else {
+                // 往下
                 readRequest();
             }
             lenBuffer.clear();
@@ -254,6 +255,7 @@ public class NIOServerCnxn extends ServerCnxn {
                     boolean isPayload;
                     if (incomingBuffer == lenBuffer) { // start of next request
                         incomingBuffer.flip();
+                        // 校验长度
                         isPayload = readLength(k);
                         incomingBuffer.clear();
                     } else {
@@ -261,6 +263,7 @@ public class NIOServerCnxn extends ServerCnxn {
                         isPayload = true;
                     }
                     if (isPayload) { // not the case for 4letterword
+                        // 往下
                         readPayload();
                     }
                     else {
@@ -986,6 +989,7 @@ public class NIOServerCnxn extends ServerCnxn {
         if (!initialized && checkFourLetterWord(sk, len)) {
             return false;
         }
+        // 校验长度
         if (len < 0 || len > BinaryInputArchive.maxBuffer) {
             throw new IOException("Len error " + len);
         }
@@ -1127,6 +1131,7 @@ public class NIOServerCnxn extends ServerCnxn {
             byte b[] = baos.toByteArray();
             ByteBuffer bb = ByteBuffer.wrap(b);
             bb.putInt(b.length - 4).rewind();
+            // 将bb加入到outgoingBuffers中去
             sendBuffer(bb);
             if (h.getXid() > 0) {
                 synchronized(this){

@@ -41,6 +41,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * FileTnxSnapLog封装了TxnLog和SnapShot，其在持久化过程中是一个帮助类。
+ *
  * This is a helper class 
  * above the implementations 
  * of txnlog and snapshot 
@@ -177,6 +179,8 @@ public class FileTxnSnapLog {
     }
 
     /**
+     * 从快照中还原数据库时，快照很可能落后于事务日志，所以需要从落后的那一部分事务日志中更新内存
+     *
      * This function will fast forward the server database to have the latest
      * transactions in it.  This is the same as restore, but only reads from
      * the transaction logs and not restores from a snapshot.
@@ -287,6 +291,8 @@ public class FileTxnSnapLog {
     }
 
     /**
+     * 持久化快照
+     *
      * save the datatree and the sessions into a snapshot
      * @param dataTree the datatree to be serialized onto disk
      * @param sessionsWithTimeouts the sesssion timeouts to be

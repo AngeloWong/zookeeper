@@ -119,6 +119,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
     @Override
     public void run() {
         try {
+            // 从队列获取命令进行处理
             while (true) {
                 Request request = submittedRequests.take();
                 long traceMask = ZooTrace.CLIENT_REQUEST_TRACE_MASK;
@@ -131,6 +132,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                 if (Request.requestOfDeath == request) {
                     break;
                 }
+                // 往下
                 pRequest(request);
             }
         } catch (RequestProcessorException e) {
@@ -145,10 +147,12 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
     }
 
     ChangeRecord getRecordForPath(String path) throws KeeperException.NoNodeException {
+        // 最后一次修改记录
         ChangeRecord lastChange = null;
         synchronized (zks.outstandingChanges) {
             lastChange = zks.outstandingChangesForPath.get(path);
             if (lastChange == null) {
+                // DataNode是数据存储的最小单元，其内部除了保存了结点的数据内容、ACL列表、节点状态之外，还记录了父节点的引用和子节点列表两个属性，其也提供了对子节点列表进行操作的接口。
                 DataNode n = zks.getZKDatabase().getNode(path);
                 if (n != null) {
                     Set<String> children;
@@ -339,13 +343,16 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                     throw new KeeperException.InvalidACLException(path);
                 }
                 String parentPath = path.substring(0, lastSlash);
+                // 获取父节点的最后一次修改记录
                 ChangeRecord parentRecord = getRecordForPath(parentPath);
 
                 checkACL(zks, parentRecord.acl, ZooDefs.Perms.CREATE,
                         request.authInfo);
+                // 表示对此znode的子节点进行的更改次数。
                 int parentCVersion = parentRecord.stat.getCversion();
                 CreateMode createMode =
                     CreateMode.fromFlag(createRequest.getFlags());
+                // 创建顺序节点，则在path后面加上序列号，cVersion初始值为0
                 if (createMode.isSequential()) {
                     path = path + String.format(Locale.ENGLISH, "%010d", parentCVersion);
                 }
@@ -357,11 +364,17 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                 } catch (KeeperException.NoNodeException e) {
                     // ignore this one
                 }
+                // 临时节点
+                // ephemeralOwner:如果znode是ephemeral类型节点，则这是znode所有者的 session ID。 如果znode不是ephemeral节点，则该字段设置为零。
+                // 父节点是不是临时节点，ephemeralOwner不等于0则代表是临时节点
                 boolean ephemeralParent = parentRecord.stat.getEphemeralOwner() != 0;
                 if (ephemeralParent) {
+                    // 父节点时临时节点，不允许创建子节点
                     throw new KeeperException.NoChildrenForEphemeralsException(path);
                 }
+                // cVersion加1
                 int newCversion = parentRecord.stat.getCversion()+1;
+                // 生成事务
                 request.txn = new CreateTxn(path, createRequest.getData(),
                         listACL,
                         createMode.isEphemeral(), newCversion);
@@ -372,7 +385,10 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                 parentRecord = parentRecord.duplicate(request.hdr.getZxid());
                 parentRecord.childCount++;
                 parentRecord.stat.setCversion(newCversion);
+                // 把修改记录加入到集合容器中去，那么就肯定有线程服务去取修改记录进行修改
+                // 修改父节点
                 addChangeRecord(parentRecord);
+                // 新增子节点
                 addChangeRecord(new ChangeRecord(request.hdr.getZxid(), path, s,
                         0, listACL));
                 break;
@@ -523,7 +539,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
     /**
      * This method will be called inside the ProcessRequestThread, which is a
      * singleton, so there will be a single thread calling this code.
-     *
+     * 处理命令的核心方法
      * @param request
      */
     @SuppressWarnings("unchecked")
@@ -537,6 +553,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
             switch (request.type) {
                 case OpCode.create:
                 CreateRequest createRequest = new CreateRequest();
+                // zxid的生成
                 pRequest2Txn(request.type, zks.getNextZxid(), request, createRequest, true);
                 break;
             case OpCode.delete:
@@ -629,7 +646,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                 pRequest2Txn(request.type, zks.getNextZxid(), request, null, true);
                 break;
  
-            //All the rest don't need to create a Txn - just verify session
+            //All the rest don't need to create a Txn - just verify session 非事务请求
             case OpCode.sync:
             case OpCode.exists:
             case OpCode.getData:
@@ -678,6 +695,8 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
             }
         }
         request.zxid = zks.getZxid();
+
+        // 调用Sync
         nextProcessor.processRequest(request);
     }
 
@@ -702,6 +721,9 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
      *
      * @param authInfo list of ACL IDs associated with the client connection
      * @param acl list of ACLs being assigned to the node (create or setACL operation)
+     *
+     * authInfo 当前登录的用户
+     * acl 针对设置的权限
      * @return
      */
     private boolean fixupACL(List<Id> authInfo, List<ACL> acl) {
@@ -714,12 +736,14 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
 
         Iterator<ACL> it = acl.iterator();
         LinkedList<ACL> toAdd = null;
+        // 循环设置的权限
         while (it.hasNext()) {
             ACL a = it.next();
             Id id = a.getId();
             if (id.getScheme().equals("world") && id.getId().equals("anyone")) {
                 // wide open
             } else if (id.getScheme().equals("auth")) {
+                // 如果是权限是针对用户设置的
                 // This is the "auth" id, so we have to expand it to the
                 // authenticated ids of the requestor
                 it.remove();
@@ -735,6 +759,8 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                                 + cid.getScheme());
                     } else if (ap.isAuthenticated()) {
                         authIdValid = true;
+                        // 注意这里，这个toAdd后面会用，
+                        // 主要逻辑就是针对某一个用户设置的ACL，循环当前所有的用户，针对每一个用户设置的ACL一样的perm，并且构造出新的acl
                         toAdd.add(new ACL(a.getPerms(), cid));
                     }
                 }
