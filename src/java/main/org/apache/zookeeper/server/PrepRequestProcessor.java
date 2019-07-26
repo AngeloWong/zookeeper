@@ -274,6 +274,21 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
         }
     }
 
+    /**
+     * org.apache.zookeeper.ZooDefs.Perms:
+     *  READ:       00001       1
+     *  WRITE:      00010       2
+     *  CREATE:     00100       4
+     *  DELETE:     01000       8
+     *  ADMIN:      10000       16
+     *  ALL:        11111       31
+     *
+     * @param zks
+     * @param acl   节点已经存在的权限规则： scheme、id => zhangsan:123123:ad, ip:192.168.66.88:adc
+     * @param perm  当前操作所需要的权限(数值见上述Perms详解)
+     * @param ids   客户端所登录的用户信息(通过addauth digest xxx:yyy设置)及IP信息等
+     * @throws KeeperException.NoAuthException
+     */
     static void checkACL(ZooKeeperServer zks, List<ACL> acl, int perm,
             List<Id> ids) throws KeeperException.NoAuthException {
         if (skipACL) {
@@ -283,6 +298,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
             return;
         }
         for (Id authId : ids) {
+            // super用户免权限验证
             if (authId.getScheme().equals("super")) {
                 return;
             }
@@ -492,7 +508,9 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                             es.add(c.path);
                         }
                     }
+                    // 所需删除的临时节点
                     for (String path2Delete : es) {
+                        // 添加删除节点记录，stat=null
                         addChangeRecord(new ChangeRecord(request.hdr.getZxid(),
                                 path2Delete, null, 0, null));
                     }

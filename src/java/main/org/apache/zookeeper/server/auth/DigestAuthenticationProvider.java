@@ -88,6 +88,10 @@ public class DigestAuthenticationProvider implements AuthenticationProvider {
         return i == 62 ? '+' : '/';
     }
 
+    /**
+     * 生成digest签名
+     * 格式：用户名:BASE64(SHA!(用户名:密码))
+     */
     static public String generateDigest(String idPassword)
             throws NoSuchAlgorithmException {
         String parts[] = idPassword.split(":", 2);
@@ -102,6 +106,7 @@ public class DigestAuthenticationProvider implements AuthenticationProvider {
         String id = new String(authData);
         try {
             String digest = generateDigest(id);
+            // super用户后门
             if (digest.equals(superDigest)) {
                 cnxn.addAuthInfo(new Id("super", ""));
             }
