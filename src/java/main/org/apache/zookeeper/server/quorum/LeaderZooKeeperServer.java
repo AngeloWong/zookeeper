@@ -32,6 +32,16 @@ import org.apache.zookeeper.server.ZKDatabase;
 import org.apache.zookeeper.server.persistence.FileTxnSnapLog;
 
 /**
+ * PrepRequestProcessor: checkACL, 构造txn
+ * SyncRequestProcessor: 持久txn，快照
+ * FinalRequestProcessor: 更新内存，返回response
+ *
+ * Leader
+ *  PrepRequestProcessor -> ProposalRequestProcessor -> CommitProcessor -> Leader.ToBeAppliedRequestProcessor -> FinalRequestProcessor
+ * Follower
+ *  FollowerRequestProcessor -> CommitProcessor -> FinalRequestProcessor
+ * Observer
+ *  ObserverRequestProcessor -> CommitProcessor -> FinalRequestProcessor
  * 
  * Just like the standard ZooKeeperServer. We just replace the request
  * processors: PrepRequestProcessor -> ProposalRequestProcessor ->

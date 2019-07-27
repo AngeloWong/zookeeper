@@ -641,7 +641,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
     
     @Override
     public synchronized void start() {
-        // 加载数据
+        // 加载数据：从快照导出数据到内存
         loadDataBase();
         // 开启读取数据线程
         cnxnFactory.start();        
@@ -1016,8 +1016,8 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
                     }
                     break;
                 case LEADING:
-                    LOG.info("LEADING");
                     // 领导者
+                    LOG.info("LEADING");
                     try {
                         setLeader(makeLeader(logFactory));
                         // 主要就是开启LearnerHandler线程

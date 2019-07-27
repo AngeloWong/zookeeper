@@ -168,6 +168,7 @@ public class Learner {
      *                the request from the client
      * @throws IOException
      */
+    // 把这个request发送给leader
     void request(Request request) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream oa = new DataOutputStream(baos);
@@ -434,7 +435,8 @@ public class Learner {
                         zk.takeSnapshot();
                         self.setCurrentEpoch(newEpoch);
                     }
-                    self.cnxnFactory.setZooKeeperServer(zk);                
+                    self.cnxnFactory.setZooKeeperServer(zk);
+                    // 跳出while循环
                     break outerLoop;
                 case Leader.NEWLEADER: // Getting NEWLEADER here instead of in discovery 
                     // means this is Zab 1.0

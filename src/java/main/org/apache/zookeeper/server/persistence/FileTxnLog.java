@@ -362,6 +362,7 @@ public class FileTxnLog implements TxnLog {
     }
 
     /**
+     * 删除大于zxid的日志
      * truncate the current transaction logs
      * @param zxid the zxid to truncate the logs to
      * @return true if successful false if not

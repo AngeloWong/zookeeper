@@ -358,7 +358,7 @@ public class QuorumPeerConfig {
             }
             if (syncLimit == 0) {
                 throw new IllegalArgumentException("syncLimit is not set");
-            }
+            } 
             /*
              * If using FLE, then every server requires a separate election
              * port.
@@ -396,13 +396,14 @@ public class QuorumPeerConfig {
                  */
 
                 LOG.info("Defaulting to majority quorums");
-                quorumVerifier = new QuorumMaj(servers.size());
+                quorumVerifier = new QuorumMaj(servers.size()); // 目前这个servers不包括参与者，所以再算过半的时候不包括观察者
             }
 
             // Now add observers to servers, once the quorums have been
             // figured out
-            servers.putAll(observers);
+            servers.putAll(observers); // 这里才把参与者加到servers中区
 
+            // 在所配置的dataDir路径下获取myid文件，通过读取其中的内容，将myid值设置为serverId
             File myIdFile = new File(dataDir, "myid");
             if (!myIdFile.exists()) {
                 throw new IllegalArgumentException(myIdFile.toString()
@@ -422,7 +423,8 @@ public class QuorumPeerConfig {
                 throw new IllegalArgumentException("serverid " + myIdString
                         + " is not a number");
             }
-            
+
+            // peerType 修正（以防万一）
             // Warn about inconsistent peer type
             LearnerType roleByServersList = observers.containsKey(serverId) ? LearnerType.OBSERVER
                     : LearnerType.PARTICIPANT;
