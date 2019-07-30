@@ -18,29 +18,6 @@
 
 package org.apache.zookeeper.server.quorum;
 
-import java.io.ByteArrayOutputStream;
-import java.io.BufferedInputStream;
-import java.io.IOException;
-import java.net.BindException;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.SocketAddress;
-import java.net.SocketException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
-
-import javax.security.sasl.SaslException;
-
-import org.apache.jute.BinaryOutputArchive;
 import org.apache.zookeeper.common.Time;
 import org.apache.zookeeper.server.FinalRequestProcessor;
 import org.apache.zookeeper.server.Request;
@@ -52,6 +29,16 @@ import org.apache.zookeeper.server.util.SerializeUtils;
 import org.apache.zookeeper.server.util.ZxidUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.security.sasl.SaslException;
+import java.io.BufferedInputStream;
+import java.io.IOException;
+import java.net.*;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Leader:
@@ -498,6 +485,7 @@ public class Leader {
                     // Synced set is used to check we have a supporting quorum, so only
                     // PARTICIPANT, not OBSERVER, learners should be used
                     if (f.synced() && f.getLearnerType() == LearnerType.PARTICIPANT) {
+                        // syncedSet中保存当前存活的sid
                         syncedSet.add(f.getSid());
                     }
                     f.ping();
@@ -509,16 +497,18 @@ public class Leader {
                     return;
                 }
 
-              if (!tickSkip && !self.getQuorumVerifier().containsQuorum(syncedSet)) {
-                //if (!tickSkip && syncedCount < self.quorumPeers.size() / 2) {
+                // 其中一台Follower挂掉，Leader会判断当前Followers是否符合过半机制，满足继续运行；否则，则会自动将自己shutdown
+                // 若当前存活服务器数未过半，Leader自动关闭服务器
+                if (!tickSkip && !self.getQuorumVerifier().containsQuorum(syncedSet)) {
+                    //if (!tickSkip && syncedCount < self.quorumPeers.size() / 2) {
                     // Lost quorum, shutdown
                     shutdown("Not sufficient followers synced, only synced with sids: [ "
                             + getSidSetString(syncedSet) + " ]");
                     // make sure the order is the same!
                     // the leader goes to looking
                     return;
-              } 
-              tickSkip = !tickSkip;
+                }
+                tickSkip = !tickSkip;
             }
         } finally {
             zk.unregisterJMX(this);

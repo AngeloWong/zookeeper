@@ -24,10 +24,11 @@ import java.util.Set;
  * All quorum validators have to implement a method called
  * containsQuorum, which verifies if a Set of server 
  * identifiers constitutes a quorum.
- *
+ * 集群验证器
  */
 
 public interface QuorumVerifier {
     long getWeight(long id);
+    // 用来判断set参数的服务器集合能否构成一个集群，（通常是过半机制，常见实现QuorumMaj）
     boolean containsQuorum(Set<Long> set);
 }

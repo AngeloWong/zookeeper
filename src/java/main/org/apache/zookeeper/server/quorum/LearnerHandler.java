@@ -498,23 +498,26 @@ public class LearnerHandler extends ZooKeeperThread {
                 rl.unlock();
             }
 
+            //生成NEWLEADER的packet,发给learner代表自己需要同步的信息发完了
              QuorumPacket newLeaderQP = new QuorumPacket(Leader.NEWLEADER,
                     ZxidUtils.makeZxid(newEpoch, 0), null, null);
              if (getVersion() < 0x10000) {
                 oa.writeRecord(newLeaderQP, "packet");
             } else {
+                 //加入发送队列
                 queuedPackets.add(newLeaderQP);
             }
-            bufferedOutput.flush();
+            bufferedOutput.flush(); //发送NEWLEADER消息
             //Need to set the zxidToSend to the latest zxid
-            if (packetToSend == Leader.SNAP) {
+            if (packetToSend == Leader.SNAP) { //如果是SNAP同步，获取zxid
                 zxidToSend = leader.zk.getZKDatabase().getDataTreeLastProcessedZxid();
             }
+            // 写发送类型，再发送数据
             oa.writeRecord(new QuorumPacket(packetToSend, zxidToSend, null, null), "packet");
             bufferedOutput.flush();
             
             /* if we are not truncating or sending a diff just send a snapshot */
-            if (packetToSend == Leader.SNAP) {
+            if (packetToSend == Leader.SNAP) { //如果发出snap，代表告知learner进行snap方式的数据同步
                 LOG.info("Sending snapshot last zxid of peer is 0x"
                         + Long.toHexString(peerLastZxid) + " " 
                         + " zxid of leader is 0x"
@@ -522,8 +525,8 @@ public class LearnerHandler extends ZooKeeperThread {
                         + "sent zxid of db as 0x" 
                         + Long.toHexString(zxidToSend));
                 // Dump data to peer
-                leader.zk.getZKDatabase().serializeSnapshot(oa);
-                oa.writeString("BenWasHere", "signature");
+                leader.zk.getZKDatabase().serializeSnapshot(oa); //SNAP恢复就是把当前的db的序列化内容发送出去
+                oa.writeString("BenWasHere", "signature"); //有特定的签名
             }
             bufferedOutput.flush();
             
@@ -533,12 +536,12 @@ public class LearnerHandler extends ZooKeeperThread {
                     Thread.currentThread().setName(
                             "Sender-" + sock.getRemoteSocketAddress());
                     try {
-                        sendPackets();
+                        sendPackets(); //不断发送packets直到接受到proposalOfDeath
                     } catch (InterruptedException e) {
                         LOG.warn("Unexpected interruption",e);
                     }
                 }
-            }.start();
+            }.start(); //启动线程，发送消息去同步
             
             /*
              * Have to wait for the first ACK, wait until 
@@ -552,12 +555,15 @@ public class LearnerHandler extends ZooKeeperThread {
                 return;
             }
             LOG.info("Received NEWLEADER-ACK message from " + getSid());
-            leader.waitForNewLeaderAck(getSid(), qp.getZxid());
+            leader.waitForNewLeaderAck(getSid(), qp.getZxid()); //等待有过半参与者返回ACK
+            // 上面代码之后代表leader与learner直接初始化完成了
 
+            // 正常同步开启
             syncLimitCheck.start();
             
             // now that the ack has been processed expect the syncLimit
-            sock.setSoTimeout(leader.self.tickTime * leader.self.syncLimit);
+            // 设置同步时间
+            sock.setSoTimeout(leader.self.tickTime * leader.self.syncLimit); //请求阶段的读取超时时间 为 tickTime * syncLimit
 
             /*
              * Wait until leader starts up
@@ -570,10 +576,11 @@ public class LearnerHandler extends ZooKeeperThread {
             // Mutation packets will be queued during the serialize,
             // so we need to mark when the peer can actually start
             // using the data
-            //
+            // 发送update代表过半的机器回复了NEWLEADER的ACK，可以开始接受请求了
             queuedPackets.add(new QuorumPacket(Leader.UPTODATE, -1, null, null));
 
-            while (true) {
+            while (true) { //正常交互，处理learner的请求等
+                // 不停的从ia充获取从Learner发过来的QuorumPacket
                 qp = new QuorumPacket();
                 ia.readRecord(qp, "packet");
 
@@ -592,14 +599,17 @@ public class LearnerHandler extends ZooKeeperThread {
                 int cxid;
                 int type;
 
+                // 处理其他服务器的请求
                 switch (qp.getType()) {
                 case Leader.ACK:
+                    // 收到同步ack
                     if (this.learnerType == LearnerType.OBSERVER) {
                         if (LOG.isDebugEnabled()) {
                             LOG.debug("Received ACK from Observer  " + this.sid);
                         }
                     }
                     syncLimitCheck.updateAck(qp.getZxid());
+                    // 提交本地的request
                     leader.processAck(this.sid, qp.getZxid(), sock.getLocalSocketAddress());
                     break;
                 case Leader.PING:
@@ -614,6 +624,7 @@ public class LearnerHandler extends ZooKeeperThread {
                     }
                     break;
                 case Leader.REVALIDATE:
+                    // 重新激活session
                     bis = new ByteArrayInputStream(qp.getData());
                     dis = new DataInputStream(bis);
                     long id = dis.readLong();
@@ -640,9 +651,11 @@ public class LearnerHandler extends ZooKeeperThread {
                     }
                     dos.writeBoolean(valid);
                     qp.setData(bos.toByteArray());
+                    // 重新吧这个qp加进去，发给learner
                     queuedPackets.add(qp);
                     break;
-                case Leader.REQUEST:                    
+                case Leader.REQUEST:
+                    // 这里有一个问题，作为Leanner它是怎么把这个request发出来的，应该要用到QuorumServer中的同步端口
                     bb = ByteBuffer.wrap(qp.getData());
                     sessionId = bb.getLong();
                     cxid = bb.getInt();
@@ -650,11 +663,14 @@ public class LearnerHandler extends ZooKeeperThread {
                     bb = bb.slice();
                     Request si;
                     if(type == OpCode.sync){
+                        // 请求同步的请求
                         si = new LearnerSyncRequest(this, sessionId, cxid, type, bb, qp.getAuthinfo());
                     } else {
+                        // 正常的请求
                         si = new Request(null, sessionId, cxid, type, bb, qp.getAuthinfo());
                     }
                     si.setOwner(this);
+                    // 本地提交请求，和单机模式类似了，FinalRequestProcessor中会处理请求
                     leader.zk.submitRequest(si);
                     break;
                 default:
@@ -680,6 +696,7 @@ public class LearnerHandler extends ZooKeeperThread {
             LOG.warn("******* GOODBYE " 
                     + (sock != null ? sock.getRemoteSocketAddress() : "<null>")
                     + " ********");
+            // 不是一个普通的关闭
             shutdown();
         }
     }
